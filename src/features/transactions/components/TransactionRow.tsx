@@ -4,7 +4,7 @@
  */
 import { Pressable, View } from "react-native";
 import type { Category, Transaction } from "@core/domain";
-import { PAYMENT_METHOD_LABEL, dayLabel } from "@core/domain";
+import { PAYMENT_METHOD_LABEL, dayLabel, signOf } from "@core/domain";
 import { Badge, Icon, MoneyText, Text } from "@shared/ui";
 
 interface TransactionRowProps {
@@ -60,10 +60,12 @@ export function TransactionRow({
       </View>
 
       <View className="items-end gap-1">
+        {/* amountCents é sempre positivo; o sinal econômico vem do type (§5.2).
+            Saída = −, entrada = +, transferência = sem sinal. */}
         <MoneyText
-          cents={t.amountCents}
-          tone={isExpense ? "expense" : "income"}
-          signed
+          cents={t.type === "TRANSFER" ? t.amountCents : signOf(t.type) * t.amountCents}
+          tone={isExpense ? "expense" : t.type === "INCOME" ? "income" : "neutral"}
+          signed={t.type !== "TRANSFER"}
           projected={t.isProjected}
         />
         {t.isProjected ? <Badge label="previsto" tone="flame" /> : null}

@@ -6,6 +6,7 @@ import {
   PAYMENT_METHOD_LABEL,
   dayLabel,
   monthKey as toMonthKey,
+  signOf,
 } from "@core/domain";
 import { Badge, Button, MoneyText, Text } from "@shared/ui";
 import {
@@ -70,10 +71,14 @@ export default function TransactionDetailScreen() {
                 {tx.type === "INCOME" ? "entrada" : "saída"}
               </Text>
               <MoneyText
-                cents={tx.amountCents}
+                cents={
+                  tx.type === "TRANSFER"
+                    ? tx.amountCents
+                    : signOf(tx.type) * tx.amountCents
+                }
                 variant="display"
                 tone={tx.type === "INCOME" ? "income" : "expense"}
-                signed
+                signed={tx.type !== "TRANSFER"}
                 projected={tx.isProjected}
               />
               {tx.isProjected ? <Badge label="valor previsto" tone="flame" /> : null}
