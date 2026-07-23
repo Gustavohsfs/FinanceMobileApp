@@ -9,7 +9,7 @@
  * `value` é plotado em centavos (inteiro); a formatação BRL acontece só na
  * pílula, via core/money. Nenhuma conta de dinheiro é feita aqui.
  */
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { View } from "react-native";
 import {
   Circle,
@@ -38,29 +38,35 @@ interface LineAreaChartProps {
   height?: number;
 }
 
-function haptic() {
-  void Haptics.selectionAsync();
-}
-
 export function LineAreaChart({ data, height = 200 }: LineAreaChartProps) {
   const { state, isActive } = useChartPressState({ x: 0, y: { value: 0 } });
   const [active, setActive] = useState<{ label: string; value: Cents } | null>(
     null,
   );
 
-  // Atualiza a pílula e dispara haptic quando o índice sob o dedo muda.
+  // Roda na THREAD JS. Worklet não pode chamar função importada comum
+  // (dayLabel virava um "remote object" na UI thread → "is not a function").
+  // O worklet manda só o índice; label e haptic acontecem aqui.
+  const onScrub = useCallback(
+    (idx: number) => {
+      const p = data[idx];
+      if (!p) return;
+      void Haptics.selectionAsync();
+      setActive({ label: dayLabel(p.iso), value: p.value });
+    },
+    [data],
+  );
+
+  // Atualiza a pílula quando o índice sob o dedo muda. prev === null é a
+  // primeira avaliação (montagem) — ignora para não disparar pílula/haptic
+  // sem toque.
   useAnimatedReaction(
     () => state.x.value.value,
     (curr, prev) => {
-      if (curr === prev) return;
-      const idx = Math.round(curr);
-      const p = data[idx];
-      if (p) {
-        runOnJS(haptic)();
-        runOnJS(setActive)({ label: dayLabel(p.iso), value: p.value });
-      }
+      if (prev === null || Math.round(curr) === Math.round(prev)) return;
+      runOnJS(onScrub)(Math.round(curr));
     },
-    [data],
+    [onScrub],
   );
 
   useEffect(() => {
