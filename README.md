@@ -1,6 +1,8 @@
 # Fluxo — app de finanças pessoais
 
-App mobile (React Native + Expo SDK 57) construído a partir de `BRIEF-app-financeiro.md`.
+App mobile (React Native + Expo SDK 54) construído a partir de `BRIEF-app-financeiro.md`.
+(O brief pedia SDK 57, mas o Expo Go das lojas hoje só suporta SDK 54 — por isso
+rodamos no 54 para você testar via QR code sem build nativa.)
 Esta é a **fase app-only**: sem backend ainda (o NestJS entra depois). Toda a
 persistência é local e o app já está preparado para plugar a API futura sem
 reescrever as telas.

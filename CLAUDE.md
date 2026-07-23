@@ -5,7 +5,13 @@
 
 ## Stack (versões travadas)
 
-- Expo SDK **57** · React Native 0.86 · React 19.2 · New Architecture
+- Expo SDK **54** · React Native 0.81 · React 19.1 · expo-router 6 · New Architecture
+  - Rebaixado de SDK 57 → 54 porque o **Expo Go das lojas só suporta SDK 54**
+    (SDK 57 dava "Project is incompatible"). Não volte para 57 sem migrar para
+    dev/EAS build. Use `expo install --fix` ao mexer em versões.
+  - Helpers de conteúdo do drawer (`DrawerContentScrollView`, `DrawerItemList`,
+    `DrawerContentComponentProps`) vêm de `@react-navigation/drawer` (permitido no
+    SDK 54; proibido a partir do 56). `Drawer` vem de `expo-router/drawer`.
 - TypeScript **strict** (`strict`, `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`)
 - Expo Router (file-based) — Drawer + Stack + modais · dir de rotas: `src/app`
 - NativeWind v4 (Tailwind **v3.4**, não v4) · react-native-svg + Skia p/ gráficos
