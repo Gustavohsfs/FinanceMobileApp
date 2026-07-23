@@ -14,6 +14,11 @@
     SDK 54; proibido a partir do 56). `Drawer` vem de `expo-router/drawer`.
 - TypeScript **strict** (`strict`, `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`)
 - Expo Router (file-based) — Drawer + Stack + modais · dir de rotas: `src/app`
+- **Datas: NÃO use `@date-fns/tz`/`TZDate` nem `Intl` para calendário.** O Hermes
+  não suporta `timeZoneName: 'longOffset'` e a TZDate gerava datas erradas no
+  dispositivo (ex.: "dezembro de 2025" em pleno julho/2026). `core/domain/dates.ts`
+  usa offset fixo UTC-3 (Brasil sem DST desde 2019) com aritmética pura — é o
+  único lugar que converte fuso. `Intl.NumberFormat` (BRL) pode, funciona no Hermes.
 - NativeWind v4 (Tailwind **v3.4**, não v4) · react-native-svg + Skia p/ gráficos
 - @tanstack/react-query (estado de servidor) · zustand (estado de UI)
 - react-hook-form + zod · victory-native (charts) · @shopify/flash-list

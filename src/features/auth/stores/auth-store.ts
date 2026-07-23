@@ -62,17 +62,23 @@ export const useAuthStore = create<AuthState>((set) => {
     user: null,
 
     bootstrap: async () => {
-      await sessionStore.hydrate();
-      if (!sessionStore.hasSession()) {
-        set({ status: "unauthenticated", user: null });
-        return;
-      }
+      // Blindado de ponta a ponta: qualquer falha aqui (SecureStore corrompido,
+      // rede fora, API 5xx) termina em "unauthenticated" — nunca em crash.
       try {
+        await sessionStore.hydrate();
+        if (!sessionStore.hasSession()) {
+          set({ status: "unauthenticated", user: null });
+          return;
+        }
         // /me dispara refresh automático se o access estiver expirado.
         const user = await api.get<SessionUser>("/v1/auth/me");
         set({ status: "authenticated", user });
       } catch {
-        await sessionStore.clear();
+        try {
+          await sessionStore.clear();
+        } catch {
+          // limpar falhou — segue para o login mesmo assim
+        }
         set({ status: "unauthenticated", user: null });
       }
     },

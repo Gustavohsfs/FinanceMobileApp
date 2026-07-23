@@ -148,8 +148,12 @@ export async function apiFetch<T>(path: string, opts: RequestOptions = {}): Prom
   if (res.status === 401 && auth && !opts._retry) {
     const refreshed = await refreshOnce();
     if (refreshed) return apiFetch<T>(path, { ...opts, _retry: true });
-    await sessionStore.clear();
-    sessionStore.fireUnauthorized();
+    // Só derruba a sessão se de fato havia uma — um 401 disparado antes do
+    // hydrate (ou sem login) não pode apagar tokens recém-gravados.
+    if (sessionStore.hasSession()) {
+      await sessionStore.clear();
+      sessionStore.fireUnauthorized();
+    }
     throw new ApiRequestError(await toApiError(res));
   }
 

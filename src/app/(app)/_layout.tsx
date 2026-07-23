@@ -66,11 +66,16 @@ function icon(name: string) {
 
 export default function AppLayout() {
   // Backend cria categorias no registro, mas não conta nem cartão. Garante ambos
-  // (crédito e parcelamento exigem um cartão).
+  // (crédito e parcelamento exigem um cartão). Falha aqui não pode derrubar o
+  // app — sem rede, o quick-entry avisa na hora de salvar.
   useEffect(() => {
     void (async () => {
-      await ensureDefaultAccount();
-      await ensureDefaultCreditCard();
+      try {
+        await ensureDefaultAccount();
+        await ensureDefaultCreditCard();
+      } catch {
+        // offline ou API indisponível — tenta de novo na próxima abertura
+      }
     })();
   }, []);
 
