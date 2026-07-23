@@ -1,26 +1,20 @@
 /**
- * Saldo consolidado de todas as contas (cabeçalho do drawer, BRIEF §7).
- * Derivado das transações vivas (income - expense) — nunca armazenado.
+ * Saldo do mês corrente no cabeçalho do drawer (BRIEF §7). Vem do endpoint de
+ * summary do backend — derivado, nunca armazenado.
  */
-import { useMemo } from "react";
-import { signOf } from "@core/domain";
-import { useTransactions } from "@features/transactions";
+import { currentMonthKey } from "@core/domain";
+import { usePeriodStore } from "@shared/stores/period-store";
 import { MoneyText, Text } from "@shared/ui";
+import { useSummary } from "../api/insights";
 
 export function ConsolidatedBalance() {
-  const { data } = useTransactions();
-  const balance = useMemo(
-    () =>
-      (data ?? []).reduce(
-        (acc, t) => acc + (t.isProjected ? 0 : signOf(t.type) * t.amountCents),
-        0,
-      ),
-    [data],
-  );
+  const basis = usePeriodStore((s) => s.basis);
+  const { data } = useSummary(currentMonthKey(), basis);
+  const balance = data?.balanceCents ?? 0;
   return (
     <>
       <Text variant="caption" className="text-bone-600">
-        saldo consolidado
+        saldo do mês
       </Text>
       <MoneyText
         cents={balance}

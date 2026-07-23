@@ -12,6 +12,11 @@ import { signOf, type ISODate, type Transaction } from "./types";
 
 export type AggregationBasis = "ACCRUAL" | "CASH"; // competência × caixa
 
+/** Converte a base para o valor esperado pela API (lowercase). */
+export function basisParam(basis: AggregationBasis): "accrual" | "cash" {
+  return basis === "CASH" ? "cash" : "accrual";
+}
+
 /** Data usada por uma transação conforme a base de agregação escolhida. */
 export function basisDate(t: Transaction, basis: AggregationBasis): ISODate {
   if (basis === "CASH") return t.settledAt ?? t.occurredAt;

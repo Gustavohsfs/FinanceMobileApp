@@ -9,9 +9,8 @@ import {
 } from "@core/domain";
 import { Badge, Button, MoneyText, Text } from "@shared/ui";
 import {
-  TransactionRow,
   useDeleteTransaction,
-  useTransactions,
+  useTransaction,
   type EditScope,
 } from "@features/transactions";
 import { useCategories } from "@features/categories";
@@ -19,12 +18,11 @@ import { useCategories } from "@features/categories";
 export default function TransactionDetailScreen() {
   const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { data: txs } = useTransactions();
+  const { data: tx } = useTransaction(id);
   const { data: cats } = useCategories();
   const del = useDeleteTransaction();
   const [confirming, setConfirming] = useState(false);
 
-  const tx = useMemo(() => (txs ?? []).find((t) => t.id === id), [txs, id]);
   const category = useMemo(
     () => (cats ?? []).find((c) => c.id === tx?.categoryId),
     [cats, tx],
@@ -36,7 +34,7 @@ export default function TransactionDetailScreen() {
 
   async function remove(scope: EditScope) {
     if (!tx) return;
-    await del.mutateAsync({ tx, scope });
+    await del.mutateAsync({ id: tx.id, scope });
     close();
   }
 

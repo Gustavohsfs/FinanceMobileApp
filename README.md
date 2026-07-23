@@ -3,9 +3,9 @@
 App mobile (React Native + Expo SDK 54) construído a partir de `BRIEF-app-financeiro.md`.
 (O brief pedia SDK 57, mas o Expo Go das lojas hoje só suporta SDK 54 — por isso
 rodamos no 54 para você testar via QR code sem build nativa.)
-Esta é a **fase app-only**: sem backend ainda (o NestJS entra depois). Toda a
-persistência é local e o app já está preparado para plugar a API futura sem
-reescrever as telas.
+
+**Integrado ao backend NestJS** (`EXPO_PUBLIC_API_URL` no `.env`). Login, dados,
+gráficos e metas vêm da API real; autenticação JWT com refresh automático.
 
 ## Como rodar (no seu celular, sem build nativa)
 
@@ -26,8 +26,10 @@ Alternativas: `npm run android` (emulador), `npm run ios` (Mac), `npm run web`.
 
 ## Login
 
-Não há servidor: o login é **simulado**. Digite qualquer email e senha não
-vazios e entre. A sessão persiste ao fechar/reabrir o app.
+O login usa a **API real**. Crie uma conta em "criar conta" (nome, email, senha)
+ou entre com uma já existente. A sessão persiste ao fechar/reabrir e renova o
+token sozinha. No primeiro acesso, o backend já cria as categorias-padrão e o
+app garante uma conta e um cartão para você começar a registrar.
 
 ## O que já dá pra testar
 

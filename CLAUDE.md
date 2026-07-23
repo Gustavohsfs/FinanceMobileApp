@@ -19,18 +19,27 @@
 - react-hook-form + zod · victory-native (charts) · @shopify/flash-list
 - date-fns + @date-fns/tz (America/Sao_Paulo)
 
-### Fase atual: **app-only, sem backend**
+### Fase atual: **integrado ao backend NestJS**
 
-Não há servidor ainda (NestJS entra numa fase futura — BRIEF §12). Toda a
-persistência é local via `core/storage` (AsyncStorage por baixo, atrás de uma
-interface). Isso é uma decisão para manter o app **testável no Expo Go** (sem
-build nativa). Trocas planejadas quando o backend entrar:
+O app fala com a API NestJS (`EXPO_PUBLIC_API_URL`, sem `/v1` na base). Contrato
+em `/docs/openapi.json`. Pontos-chave:
 
-- `react-native-mmkv` no lugar de AsyncStorage em `core/storage/kv.ts` (só este arquivo muda).
-- Repositórios locais (`features/*/api/*-repo.ts`) passam a chamar `core/api/client.ts`.
-- `features/auth` troca o mock por JWT access+refresh reais (o contrato já está desenhado).
+- **Auth** JWT: access 15m + refresh rotativo. `core/api/session.ts` guarda tokens
+  (memória + SecureStore); `core/api/client.ts` injeta Bearer e **renova sozinho
+  em 401** (single-flight); se o refresh falha, limpa sessão e derruba pro login.
+- **Erros** em RFC 7807 Problem Details (`application/problem+json`) → `ApiRequestError`
+  com `code`/`message`/`fieldErrors`.
+- **Criação de transação** exige header `idempotency-key` (guardrail §8.6) e o
+  **backend gera as parcelas** a partir de `installmentTotal` (retorna o array).
+  Crédito **exige `creditCardId`**; parcelamento exige crédito.
+- **Agregações** do dashboard vêm dos endpoints `/v1/insights/*` (o servidor é a
+  fonte da verdade; o app só apresenta). Listas usam `GET /v1/transactions?from&to&basis`.
+- Backend semeia categorias no registro, mas **não** conta nem cartão — o app
+  garante ambos no login (`ensureDefaultAccount`, `ensureDefaultCreditCard`).
+- `kv` (AsyncStorage) guarda só preferências de UI (base, biometria). Tokens só no
+  SecureStore. `react-native-mmkv` continua adiado (Expo Go). Roda no Expo Go SDK 54.
 
-Não introduza dependência de backend sem atualizar o BRIEF e esta seção.
+Storage AsyncStorage segue atrás de `core/storage/kv.ts`; trocar por MMKV = só esse arquivo.
 
 ## Regra de dependência entre camadas
 

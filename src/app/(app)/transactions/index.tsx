@@ -2,19 +2,16 @@ import { useMemo, useState } from "react";
 import { View } from "react-native";
 import { router } from "expo-router";
 import { FlashList } from "@shopify/flash-list";
-import { transactionsInMonth } from "@core/domain";
 import type { TransactionType } from "@core/domain";
-import { usePeriodStore } from "@shared/stores/period-store";
 import { PeriodHeader } from "@shared/components";
 import { EmptyState, Screen, SegmentedControl } from "@shared/ui";
-import { TransactionRow, useTransactions } from "@features/transactions";
+import { TransactionRow, useMonthTransactions } from "@features/transactions";
 import { useCategories } from "@features/categories";
 
 type Filter = "ALL" | "EXPENSE" | "INCOME";
 
 export default function TransactionsScreen() {
-  const { monthKey, basis } = usePeriodStore();
-  const { data: txs } = useTransactions();
+  const { data: txs } = useMonthTransactions();
   const { data: cats } = useCategories();
   const [filter, setFilter] = useState<Filter>("ALL");
 
@@ -24,12 +21,12 @@ export default function TransactionsScreen() {
   );
 
   const rows = useMemo(() => {
-    const inMonth = transactionsInMonth(txs ?? [], monthKey, basis).sort((a, b) =>
-      b.occurredAt.localeCompare(a.occurredAt),
-    );
-    if (filter === "ALL") return inMonth;
-    return inMonth.filter((t) => t.type === (filter as TransactionType));
-  }, [txs, monthKey, basis, filter]);
+    const sorted = (txs ?? [])
+      .slice()
+      .sort((a, b) => b.occurredAt.localeCompare(a.occurredAt));
+    if (filter === "ALL") return sorted;
+    return sorted.filter((t) => t.type === (filter as TransactionType));
+  }, [txs, filter]);
 
   return (
     <Screen>

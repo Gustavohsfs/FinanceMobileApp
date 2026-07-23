@@ -1,40 +1,41 @@
 import { useMemo } from "react";
 import { View } from "react-native";
-import {
-  PAYMENT_METHOD_LABEL,
-  expenseByCategory,
-  transactionsInMonth,
-} from "@core/domain";
+import { PAYMENT_METHOD_LABEL } from "@core/domain";
 import type { PaymentMethod } from "@core/domain";
 import { sum } from "@core/money";
-import { usePeriodStore } from "@shared/stores/period-store";
 import { PeriodHeader } from "@shared/components";
 import { Card, EmptyState, Icon, MoneyText, Screen, Text } from "@shared/ui";
-import { useTransactions } from "@features/transactions";
+import { useMonthTransactions } from "@features/transactions";
 import { useCategories } from "@features/categories";
 
 export default function ReportsScreen() {
-  const { monthKey, basis } = usePeriodStore();
-  const { data: txs } = useTransactions();
+  const { data: txs } = useMonthTransactions();
   const { data: cats } = useCategories();
 
   const catById = useMemo(() => new Map((cats ?? []).map((c) => [c.id, c])), [cats]);
 
-  const byCategory = useMemo(
-    () => expenseByCategory(txs ?? [], monthKey, basis),
-    [txs, monthKey, basis],
+  const expenses = useMemo(
+    () => (txs ?? []).filter((t) => t.type === "EXPENSE"),
+    [txs],
   );
 
+  const byCategory = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const t of expenses) {
+      map.set(t.categoryId, (map.get(t.categoryId) ?? 0) + t.amountCents);
+    }
+    return [...map.entries()]
+      .map(([categoryId, totalCents]) => ({ categoryId, totalCents }))
+      .sort((a, b) => b.totalCents - a.totalCents);
+  }, [expenses]);
+
   const byMethod = useMemo(() => {
-    const inMonth = transactionsInMonth(txs ?? [], monthKey, basis).filter(
-      (t) => t.type === "EXPENSE",
-    );
     const map = new Map<PaymentMethod, number>();
-    for (const t of inMonth) {
+    for (const t of expenses) {
       map.set(t.paymentMethod, (map.get(t.paymentMethod) ?? 0) + t.amountCents);
     }
     return [...map.entries()].sort((a, b) => b[1] - a[1]);
-  }, [txs, monthKey, basis]);
+  }, [expenses]);
 
   const totalExpense = sum(byCategory.map((c) => c.totalCents));
   const hasData = byCategory.length > 0;

@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useEffect } from "react";
 import { Pressable, View, type ColorValue } from "react-native";
 import { Drawer } from "expo-router/drawer";
 import { router } from "expo-router";
@@ -12,6 +12,8 @@ import * as Haptics from "expo-haptics";
 import { colors } from "@core/theme";
 import { useAuthStore } from "@features/auth";
 import { ConsolidatedBalance } from "@features/dashboard";
+import { ensureDefaultAccount } from "@features/accounts";
+import { ensureDefaultCreditCard } from "@features/credit-cards";
 import { Icon, Text } from "@shared/ui";
 
 function CustomDrawerContent(props: DrawerContentComponentProps) {
@@ -63,6 +65,15 @@ function icon(name: string) {
 }
 
 export default function AppLayout() {
+  // Backend cria categorias no registro, mas não conta nem cartão. Garante ambos
+  // (crédito e parcelamento exigem um cartão).
+  useEffect(() => {
+    void (async () => {
+      await ensureDefaultAccount();
+      await ensureDefaultCreditCard();
+    })();
+  }, []);
+
   const openQuickEntry = useCallback(() => {
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     router.push("/(modals)/quick-entry");

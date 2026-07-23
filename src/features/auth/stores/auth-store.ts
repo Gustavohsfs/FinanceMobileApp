@@ -1,19 +1,28 @@
 /**
- * Sessão de autenticação. FASE LOCAL: não há backend, então o "login" é
- * simulado e a sessão é um token opaco guardado no SecureStore (NUNCA em kv —
- * guardrail §8.3). O contrato (persistir sessão, renovar sem o usuário
- * perceber, logout limpa tudo — BRIEF §6.1) já fica desenhado aqui; a troca
- * pelo JWT/refresh real do NestJS mexe só neste arquivo.
+ * Sessão de autenticação — integrada à API NestJS (BRIEF §6.1).
+ *
+ * JWT access curto (15 min) + refresh rotativo. Os tokens vivem no
+ * `sessionStore` (memória + SecureStore); o client HTTP renova sozinho em 401.
+ * Aqui cuidamos de login/registro/boot/logout e do estado de sessão do app.
  */
 import { create } from "zustand";
-import { secure, SECURE_KEYS, clearKV } from "@core/storage";
-
-export const LOCAL_USER_ID = "local-user";
+import { api, ApiRequestError, sessionStore } from "@core/api";
+import { clearKV } from "@core/storage";
 
 export interface SessionUser {
   id: string;
   name: string;
   email: string;
+  timezone?: string;
+  currency?: string;
+}
+
+interface SessionResponse {
+  accessToken: string;
+  refreshToken: string;
+  tokenType: string;
+  expiresIn: number;
+  user: SessionUser;
 }
 
 type Status = "loading" | "authenticated" | "unauthenticated";
@@ -27,67 +36,86 @@ interface AuthState {
   signOut: () => Promise<void>;
 }
 
-const PROFILE_KEY = "fluxo.profile";
-
-async function persistProfile(user: SessionUser) {
-  await secure.set(PROFILE_KEY, JSON.stringify(user));
+function toMessage(e: unknown, fallback: string): string {
+  if (e instanceof ApiRequestError) {
+    return e.error.fieldErrors?.[0]?.message ?? e.error.message ?? fallback;
+  }
+  return fallback;
 }
 
-export const useAuthStore = create<AuthState>((set) => ({
-  status: "loading",
-  user: null,
+export const useAuthStore = create<AuthState>((set) => {
+  // Quando o refresh falha, o client dispara isto: derruba para o login.
+  sessionStore.setOnUnauthorized(() => {
+    set({ status: "unauthenticated", user: null });
+  });
 
-  bootstrap: async () => {
-    const token = await secure.get(SECURE_KEYS.accessToken);
-    const rawProfile = await secure.get(PROFILE_KEY);
-    if (token && rawProfile) {
-      try {
-        set({ status: "authenticated", user: JSON.parse(rawProfile) as SessionUser });
+  async function applySession(session: SessionResponse) {
+    await sessionStore.set({
+      accessToken: session.accessToken,
+      refreshToken: session.refreshToken,
+    });
+    set({ status: "authenticated", user: session.user });
+  }
+
+  return {
+    status: "loading",
+    user: null,
+
+    bootstrap: async () => {
+      await sessionStore.hydrate();
+      if (!sessionStore.hasSession()) {
+        set({ status: "unauthenticated", user: null });
         return;
-      } catch {
-        // perfil corrompido → cai para login
       }
-    }
-    set({ status: "unauthenticated", user: null });
-  },
+      try {
+        // /me dispara refresh automático se o access estiver expirado.
+        const user = await api.get<SessionUser>("/v1/auth/me");
+        set({ status: "authenticated", user });
+      } catch {
+        await sessionStore.clear();
+        set({ status: "unauthenticated", user: null });
+      }
+    },
 
-  signIn: async (email, password) => {
-    // FASE LOCAL: aceita qualquer credencial não-vazia. Simula token curto.
-    if (!email.trim() || !password.trim()) {
-      throw new Error("Preencha email e senha");
-    }
-    const user: SessionUser = {
-      id: LOCAL_USER_ID,
-      name: email.split("@")[0] ?? "você",
-      email: email.trim(),
-    };
-    await secure.set(SECURE_KEYS.accessToken, `local.${Date.now()}`);
-    await secure.set(SECURE_KEYS.refreshToken, `refresh.${Date.now()}`);
-    await persistProfile(user);
-    set({ status: "authenticated", user });
-  },
+    signIn: async (email, password) => {
+      try {
+        const session = await api.post<SessionResponse>(
+          "/v1/auth/login",
+          { email: email.trim(), password },
+          { auth: false },
+        );
+        await applySession(session);
+      } catch (e) {
+        throw new Error(toMessage(e, "Email ou senha inválidos"));
+      }
+    },
 
-  signUp: async (name, email, password) => {
-    if (!name.trim() || !email.trim() || !password.trim()) {
-      throw new Error("Preencha nome, email e senha");
-    }
-    const user: SessionUser = {
-      id: LOCAL_USER_ID,
-      name: name.trim(),
-      email: email.trim(),
-    };
-    await secure.set(SECURE_KEYS.accessToken, `local.${Date.now()}`);
-    await secure.set(SECURE_KEYS.refreshToken, `refresh.${Date.now()}`);
-    await persistProfile(user);
-    set({ status: "authenticated", user });
-  },
+    signUp: async (name, email, password) => {
+      try {
+        const session = await api.post<SessionResponse>(
+          "/v1/auth/register",
+          { name: name.trim(), email: email.trim(), password },
+          { auth: false },
+        );
+        await applySession(session);
+      } catch (e) {
+        throw new Error(toMessage(e, "Não foi possível criar a conta"));
+      }
+    },
 
-  signOut: async () => {
-    // Logout limpa SecureStore, kv e (no chamador) o cache do React Query.
-    await secure.delete(SECURE_KEYS.accessToken);
-    await secure.delete(SECURE_KEYS.refreshToken);
-    await secure.delete(PROFILE_KEY);
-    await clearKV();
-    set({ status: "unauthenticated", user: null });
-  },
-}));
+    signOut: async () => {
+      const refreshToken = sessionStore.getRefreshToken();
+      // logout best-effort no servidor (revoga o refresh); segue mesmo se falhar.
+      if (refreshToken) {
+        try {
+          await api.post("/v1/auth/logout", { refreshToken }, { auth: false });
+        } catch {
+          // ignore
+        }
+      }
+      await sessionStore.clear();
+      await clearKV();
+      set({ status: "unauthenticated", user: null });
+    },
+  };
+});

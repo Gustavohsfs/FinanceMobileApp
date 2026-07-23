@@ -87,6 +87,17 @@ export function dayLabel(iso: ISODate): string {
   return `${d.getDate()} ${meses[d.getMonth()]}`;
 }
 
+/**
+ * Intervalo [from, to) de um mês em ISO UTC, com as bordas na meia-noite do
+ * fuso do app. Usado nos query params `from`/`to` da API.
+ */
+export function monthRangeUTC(key: string): { from: ISODate; to: ISODate } {
+  const [y, m] = key.split("-").map(Number);
+  const from = new TZDate(y ?? 1970, (m ?? 1) - 1, 1, 0, 0, 0, APP_TZ);
+  const to = new TZDate(y ?? 1970, m ?? 1, 1, 0, 0, 0, APP_TZ); // 1º dia do mês seguinte
+  return { from: from.toISOString(), to: to.toISOString() };
+}
+
 /** Lista as N chaves de mês terminando no mês de referência (inclusive). */
 export function lastNMonthKeys(refKey: string, n: number): string[] {
   const keys: string[] = [];

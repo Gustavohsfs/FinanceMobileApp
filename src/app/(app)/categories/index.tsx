@@ -146,9 +146,7 @@ export default function CategoriesScreen() {
                   <Chip
                     label={c.isArchived ? "arquivada" : "arquivar"}
                     selected={c.isArchived}
-                    onPress={() =>
-                      archive.mutate({ id: c.id, archived: !c.isArchived })
-                    }
+                    {...(c.isArchived ? {} : { onPress: () => archive.mutate(c.id) })}
                   />
                 </View>
               ))}

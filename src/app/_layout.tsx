@@ -9,7 +9,6 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useFonts } from "expo-font";
 import { fontMap, colors } from "@core/theme";
-import { ensureSeeded } from "@shared/bootstrap";
 import { usePeriodStore } from "@shared/stores/period-store";
 import { useAuthStore } from "@features/auth";
 import { Text } from "@shared/ui";
@@ -57,7 +56,6 @@ export default function RootLayout() {
   const hydrateBasis = usePeriodStore((s) => s.hydrateBasis);
 
   useEffect(() => {
-    void ensureSeeded();
     void bootstrap();
     void hydrateBasis();
   }, [bootstrap, hydrateBasis]);

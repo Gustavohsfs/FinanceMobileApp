@@ -35,9 +35,12 @@ export interface Transaction {
   installmentTotal?: number; // N
   /** true para parcelas futuras / lançamentos previstos. */
   isProjected: boolean;
+  /** Origem do lançamento (manual, recorrência, open finance). */
+  source?: "MANUAL" | "RECURRENCE" | "OPEN_FINANCE";
+  recurrenceId?: string | null;
   /** Moeda modelada desde já (BRIEF §12); default BRL. */
   currency: string;
-  notes?: string;
+  notes?: string | null;
   createdAt: ISODate;
   updatedAt: ISODate;
   deletedAt: ISODate | null; // soft delete

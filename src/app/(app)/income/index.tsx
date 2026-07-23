@@ -1,20 +1,17 @@
 import { useMemo } from "react";
 import { View } from "react-native";
 import { router } from "expo-router";
-import { transactionsInMonth } from "@core/domain";
-import { usePeriodStore } from "@shared/stores/period-store";
 import { PeriodHeader } from "@shared/components";
 import { Button, Card, EmptyState, MoneyText, Screen, Text } from "@shared/ui";
 import {
   TransactionRow,
-  useTransactions,
+  useMonthTransactions,
   useUpdateTransaction,
 } from "@features/transactions";
 import { useCategories } from "@features/categories";
 
 export default function IncomeScreen() {
-  const { monthKey, basis } = usePeriodStore();
-  const { data: txs } = useTransactions();
+  const { data: txs } = useMonthTransactions();
   const { data: cats } = useCategories();
   const update = useUpdateTransaction();
 
@@ -22,10 +19,10 @@ export default function IncomeScreen() {
 
   const incomes = useMemo(
     () =>
-      transactionsInMonth(txs ?? [], monthKey, basis)
+      (txs ?? [])
         .filter((t) => t.type === "INCOME")
         .sort((a, b) => b.occurredAt.localeCompare(a.occurredAt)),
-    [txs, monthKey, basis],
+    [txs],
   );
 
   const projected = incomes.filter((t) => t.isProjected);

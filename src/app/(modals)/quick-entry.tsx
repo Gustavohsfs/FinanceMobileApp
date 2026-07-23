@@ -1,13 +1,14 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Pressable, ScrollView, View } from "react-native";
 import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Haptics from "expo-haptics";
-import { addMonthsISO, nowISO } from "@core/domain";
+import { nowISO } from "@core/domain";
 import type { PaymentMethod, TransactionType } from "@core/domain";
 import { format, splitInstallments as splitPreview } from "@core/money";
 import { kv } from "@core/storage";
 import { PAYMENT_METHOD_LABEL } from "@core/domain";
+import { ApiRequestError } from "@core/api";
 import { Button, Chip, Icon, Text } from "@shared/ui";
 import { MoneyKeypad } from "@shared/components";
 import { colors } from "@core/theme";
@@ -18,7 +19,7 @@ import {
 } from "@features/transactions";
 import { useCategoriesByType } from "@features/categories";
 import { useAccounts } from "@features/accounts";
-import { useTransactions } from "@features/transactions";
+import { useCreditCards } from "@features/credit-cards";
 
 const METHODS: PaymentMethod[] = ["CASH", "PIX", "DEBIT", "CREDIT"];
 const LAST_METHOD_KEY = "fluxo.pref.lastMethod";
@@ -31,7 +32,7 @@ export default function QuickEntryScreen() {
   const insets = useSafeAreaInsets();
   const create = useCreateTransaction();
   const { data: accounts } = useAccounts();
-  const { data: allTxs } = useTransactions();
+  const { data: cards } = useCreditCards();
 
   const [type, setType] = useState<TransactionType>("EXPENSE");
   const [amountCents, setAmountCents] = useState(0);
@@ -52,27 +53,11 @@ export default function QuickEntryScreen() {
     });
   }, []);
 
-  // padrão inteligente: categoria = a mais usada no contexto
-  const mostUsedCategoryId = useMemo(() => {
-    const tally = new Map<string, number>();
-    for (const t of allTxs ?? []) {
-      if (t.type === type) tally.set(t.categoryId, (tally.get(t.categoryId) ?? 0) + 1);
-    }
-    let best: string | null = null;
-    let max = -1;
-    for (const [id, n] of tally) if (n > max) ((max = n), (best = id));
-    return best;
-  }, [allTxs, type]);
-
+  // padrão inteligente: categoria = a primeira disponível do tipo
   useEffect(() => {
     if (categoryId && categories.some((c) => c.id === categoryId)) return;
-    const fallback =
-      (mostUsedCategoryId &&
-        categories.find((c) => c.id === mostUsedCategoryId)?.id) ||
-      categories[0]?.id ||
-      null;
-    setCategoryId(fallback);
-  }, [categories, mostUsedCategoryId, categoryId]);
+    setCategoryId(categories[0]?.id ?? null);
+  }, [categories, categoryId]);
 
   const canInstallment = supportsInstallments(method);
   useEffect(() => {
@@ -91,9 +76,15 @@ export default function QuickEntryScreen() {
   async function onSave() {
     setError(null);
     const occurredAt = dayChoice === "today" ? nowISO() : yesterdayISO();
-    // crédito afeta o caixa ~1 mês depois → demonstra competência × caixa
-    const settledAt = method === "CREDIT" ? addMonthsISO(occurredAt, 1) : null;
     const account = accounts?.[0];
+    // Crédito exige um cartão (regra do backend). settledAt fica a cargo do
+    // servidor, que conhece fechamento/vencimento da fatura.
+    const creditCardId = method === "CREDIT" ? cards?.[0]?.id : undefined;
+    if (method === "CREDIT" && !creditCardId) {
+      setError("Nenhum cartão disponível ainda. Tente de novo em instantes.");
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      return;
+    }
     const payload = {
       type,
       amountCents,
@@ -102,7 +93,7 @@ export default function QuickEntryScreen() {
       paymentMethod: method,
       installments,
       occurredAt,
-      settledAt,
+      settledAt: null,
       description: "",
     };
     const parsed = quickEntrySchema.safeParse(payload);
@@ -122,12 +113,17 @@ export default function QuickEntryScreen() {
         accountId: parsed.data.accountId,
         paymentMethod: parsed.data.paymentMethod,
         installments: parsed.data.installments,
+        ...(creditCardId ? { creditCardId } : {}),
       });
       await kv.set(LAST_METHOD_KEY, method);
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       close();
-    } catch {
-      setError("Não foi possível salvar. Tente de novo.");
+    } catch (e) {
+      setError(
+        e instanceof ApiRequestError
+          ? e.error.message
+          : "Não foi possível salvar. Tente de novo.",
+      );
     }
   }
 

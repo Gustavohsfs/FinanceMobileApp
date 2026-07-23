@@ -1,17 +1,13 @@
 /**
- * Hooks de React Query para categorias. Estado de servidor vive aqui (não no
- * Zustand — guardrail §8.10). Na fase local a "fonte" é o repositório kv.
+ * Hooks de React Query para categorias. Estado de servidor vive aqui (§8.10).
  */
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { newId } from "@core/id";
-import { nowISO } from "@core/domain";
 import type { Category } from "@core/domain";
-import { LOCAL_USER_ID } from "@shared/constants";
 import {
-  categoriesRepo,
-  listCategories,
   archiveCategory,
-  unarchiveCategory,
+  createCategory,
+  listCategories,
+  updateCategory,
 } from "./categories-repo";
 import type { CategoryFormValues } from "../schemas/category-schema";
 
@@ -38,22 +34,7 @@ export function useCategoriesByType(type: "INCOME" | "EXPENSE") {
 export function useCreateCategory() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (values: CategoryFormValues) => {
-      const category: Category = {
-        id: newId(),
-        userId: LOCAL_USER_ID,
-        name: values.name,
-        icon: values.icon,
-        color: values.color,
-        type: values.type,
-        isArchived: false,
-        ...(values.parentId ? { parentId: values.parentId } : {}),
-        ...(values.monthlyBudgetCents !== undefined
-          ? { monthlyBudgetCents: values.monthlyBudgetCents }
-          : {}),
-      };
-      return categoriesRepo.insert({ ...category, deletedAt: null });
-    },
+    mutationFn: (values: CategoryFormValues) => createCategory(values),
     onSuccess: () => qc.invalidateQueries({ queryKey: categoryKeys.all }),
   });
 }
@@ -61,9 +42,13 @@ export function useCreateCategory() {
 export function useUpdateCategory() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, patch }: { id: string; patch: Partial<Category> }) => {
-      return categoriesRepo.update(id, { ...patch, updatedAt: nowISO() } as never);
-    },
+    mutationFn: ({
+      id,
+      patch,
+    }: {
+      id: string;
+      patch: Partial<Pick<Category, "name" | "icon" | "color" | "monthlyBudgetCents">>;
+    }) => updateCategory(id, patch),
     onSuccess: () => qc.invalidateQueries({ queryKey: categoryKeys.all }),
   });
 }
@@ -71,10 +56,8 @@ export function useUpdateCategory() {
 export function useArchiveCategory() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, archived }: { id: string; archived: boolean }) => {
-      if (archived) await archiveCategory(id);
-      else await unarchiveCategory(id);
-    },
-    onSuccess: () => qc.invalidateQueries({ queryKey: categoryKeys.all }),
+    mutationFn: (id: string) => archiveCategory(id),
+    onSuccess: () =>
+      qc.invalidateQueries({ queryKey: categoryKeys.all }),
   });
 }

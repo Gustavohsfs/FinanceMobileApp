@@ -1,60 +1,60 @@
 /**
- * Deriva TODO o conteúdo do dashboard (BRIEF §6.5) a partir das transações e
- * categorias, usando as regras puras de core/domain. Nada é armazenado.
+ * Compõe o dashboard (BRIEF §6.5) a partir dos endpoints de insights do backend
+ * + as transações do mês (para "últimos lançamentos" e filtro por categoria).
  */
 import { useMemo } from "react";
-import {
-  addMonthsToKey,
-  budgetStatuses,
-  cumulativeBalanceSeries,
-  expenseByCategory,
-  lastNMonthKeys,
-  monthShort,
-  monthTotals,
-  percentDelta,
-  transactionsInMonth,
-} from "@core/domain";
-import type { AggregationBasis, Category, Transaction } from "@core/domain";
-import { useTransactions } from "@features/transactions";
+import { monthShort } from "@core/domain";
+import type { AggregationBasis } from "@core/domain";
+import { useMonthTransactions } from "@features/transactions";
 import { useCategories } from "@features/categories";
-import type { LinePoint } from "@shared/charts";
-import type { DonutSlice } from "@shared/charts";
-import type { BarGroup } from "@shared/charts";
+import type { LinePoint, DonutSlice, BarGroup } from "@shared/charts";
+import {
+  useBalanceSeries,
+  useByCategory,
+  useBudgetStatus,
+  useMonthlyComparison,
+  useSummary,
+} from "../api/insights";
 
 export function useDashboard(monthKey: string, basis: AggregationBasis) {
-  const txQuery = useTransactions();
-  const catQuery = useCategories();
+  const summaryQ = useSummary(monthKey, basis);
+  const seriesQ = useBalanceSeries(monthKey, basis);
+  const byCatQ = useByCategory(monthKey, "EXPENSE");
+  const comparisonQ = useMonthlyComparison(6);
+  const budgetQ = useBudgetStatus(monthKey, basis);
+  const txQ = useMonthTransactions();
+  const catQ = useCategories();
 
-  const txs = useMemo(() => txQuery.data ?? [], [txQuery.data]);
-  const categories = useMemo(() => catQuery.data ?? [], [catQuery.data]);
+  const categories = useMemo(() => catQ.data ?? [], [catQ.data]);
   const catById = useMemo(
     () => new Map(categories.map((c) => [c.id, c])),
     [categories],
   );
 
   const data = useMemo(() => {
-    const totals = monthTotals(txs, monthKey, basis);
-    const prev = monthTotals(txs, addMonthsToKey(monthKey, -1), basis);
-    const delta = percentDelta(totals.balanceCents, prev.balanceCents);
+    const totals = {
+      incomeCents: summaryQ.data?.incomeCents ?? 0,
+      expenseCents: summaryQ.data?.expenseCents ?? 0,
+      balanceCents: summaryQ.data?.balanceCents ?? 0,
+    };
+    const delta = summaryQ.data?.deltaPercent ?? null;
 
-    // série de saldo acumulado
-    const series = cumulativeBalanceSeries(txs, monthKey, basis);
-    const linePoints: LinePoint[] = series.map((p) => ({
-      index: p.index,
+    const series = seriesQ.data ?? [];
+    const linePoints: LinePoint[] = series.map((p, index) => ({
+      index,
       value: p.cumulativeCents,
       iso: `${p.day}T12:00:00.000Z`,
     }));
 
-    // donut: top 5 + outros
-    const byCat = expenseByCategory(txs, monthKey, basis);
+    const byCat = byCatQ.data ?? [];
     const top = byCat.slice(0, 5);
     const rest = byCat.slice(5);
     const restTotal = rest.reduce((acc, c) => acc + c.totalCents, 0);
     const slices: DonutSlice[] = top.map((c) => {
-      const cat = catById.get(c.categoryId);
+      const cat = c.categoryId ? catById.get(c.categoryId) : undefined;
       return {
-        key: c.categoryId,
-        label: cat?.name ?? "—",
+        key: c.categoryId ?? "__none__",
+        label: c.categoryName ?? cat?.name ?? "sem categoria",
         value: c.totalCents,
         color: cat?.color ?? "#FF6A00",
       };
@@ -63,44 +63,34 @@ export function useDashboard(monthKey: string, basis: AggregationBasis) {
       slices.push({ key: "__other__", label: "outros", value: restTotal, color: "#52525B" });
     }
 
-    // barras: últimos 6 meses
-    const bars: BarGroup[] = lastNMonthKeys(monthKey, 6).map((k) => {
-      const t = monthTotals(txs, k, basis);
-      return { label: monthShort(k), incomeCents: t.incomeCents, expenseCents: t.expenseCents };
-    });
+    const bars: BarGroup[] = (comparisonQ.data ?? []).map((m) => ({
+      label: monthShort(m.month),
+      incomeCents: m.incomeCents,
+      expenseCents: m.expenseCents,
+    }));
 
-    // orçamentos estourados
-    const budgets = budgetStatuses(
-      txs,
-      categories.map((c) => ({
-        categoryId: c.id,
-        ...(c.monthlyBudgetCents !== undefined
-          ? { monthlyBudgetCents: c.monthlyBudgetCents }
-          : {}),
-      })),
-      monthKey,
-      basis,
-    ).filter((b) => b.overCents > 0);
+    const budgets = (budgetQ.data ?? []).filter((b) => b.overCents > 0);
 
-    // últimos lançamentos (5), por data desc
-    const monthTxs = transactionsInMonth(txs, monthKey, basis).sort((a, b) =>
-      (b.occurredAt).localeCompare(a.occurredAt),
-    );
+    const monthTxs = (txQ.data ?? [])
+      .slice()
+      .sort((a, b) => b.occurredAt.localeCompare(a.occurredAt));
     const recent = monthTxs.slice(0, 5);
 
     return { totals, delta, linePoints, slices, bars, budgets, recent, monthTxs };
-  }, [txs, categories, catById, monthKey, basis]);
+  }, [
+    summaryQ.data,
+    seriesQ.data,
+    byCatQ.data,
+    comparisonQ.data,
+    budgetQ.data,
+    txQ.data,
+    catById,
+  ]);
 
   return {
     ...data,
     categories,
     catById,
-    isLoading: txQuery.isLoading || catQuery.isLoading,
+    isLoading: summaryQ.isLoading || txQ.isLoading,
   };
 }
-
-export function categoryLookup(categories: Category[]) {
-  return new Map<string, Category>(categories.map((c) => [c.id, c]));
-}
-
-export type { Transaction };
