@@ -25,6 +25,16 @@ export async function listAccounts(): Promise<Account[]> {
   return dtos.map(toAccount);
 }
 
+export interface CreateAccountInput {
+  name: string;
+  kind: AccountKind;
+  openingBalanceCents: number;
+}
+
+export async function createAccount(input: CreateAccountInput): Promise<Account> {
+  return toAccount(await api.post<AccountDto>("/v1/accounts", input));
+}
+
 /**
  * Garante ao menos uma conta. O backend cria categorias-semente no registro,
  * mas NÃO cria conta — e toda transação exige accountId. Chamado após o login.

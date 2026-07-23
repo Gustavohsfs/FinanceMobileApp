@@ -41,9 +41,11 @@ function CustomDrawerContent(props: DrawerContentComponentProps) {
 function HeaderMenuButton() {
   return (
     <Pressable
-      onPress={() => router.push("/(app)/settings")}
+      // navigate (e não push): se configurações já está aberta, vai até ela em
+      // vez de empilhar outra cópia — N toques não geram N telas para fechar.
+      onPress={() => router.navigate("/(app)/settings")}
       accessibilityRole="button"
-      accessibilityLabel="menu de opções"
+      accessibilityLabel="abrir configurações"
       className="mr-3 h-11 w-11 items-center justify-center rounded-full active:bg-ink-800"
     >
       <Icon name="more-vertical" color={colors.bone} />
