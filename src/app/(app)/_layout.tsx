@@ -1,12 +1,12 @@
 import { useCallback } from "react";
 import { Pressable, View, type ColorValue } from "react-native";
+import { Drawer } from "expo-router/drawer";
+import { router } from "expo-router";
 import {
-  Drawer,
   DrawerContentScrollView,
   DrawerItemList,
   type DrawerContentComponentProps,
-} from "expo-router/drawer";
-import { router } from "expo-router";
+} from "@react-navigation/drawer";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Haptics from "expo-haptics";
 import { colors } from "@core/theme";
