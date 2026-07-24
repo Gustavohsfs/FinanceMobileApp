@@ -31,8 +31,27 @@ export interface CreateAccountInput {
   openingBalanceCents: number;
 }
 
-export async function createAccount(input: CreateAccountInput): Promise<Account> {
+export async function createAccount(
+  input: CreateAccountInput,
+): Promise<Account> {
   return toAccount(await api.post<AccountDto>("/v1/accounts", input));
+}
+
+export interface UpdateAccountInput {
+  name?: string;
+  kind?: AccountKind;
+  openingBalanceCents?: number;
+}
+
+export async function updateAccount(
+  id: string,
+  input: UpdateAccountInput,
+): Promise<Account> {
+  return toAccount(await api.patch<AccountDto>(`/v1/accounts/${id}`, input));
+}
+
+export async function deleteAccount(id: string): Promise<void> {
+  await api.del(`/v1/accounts/${id}`);
 }
 
 /**
