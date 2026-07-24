@@ -66,9 +66,15 @@ export function toTransaction(d: TransactionDto): Transaction {
     updatedAt: d.updatedAt,
     deletedAt: d.deletedAt,
     ...(d.creditCardId ? { creditCardId: d.creditCardId } : {}),
-    ...(d.installmentGroupId ? { installmentGroupId: d.installmentGroupId } : {}),
-    ...(d.installmentNumber !== null ? { installmentNumber: d.installmentNumber } : {}),
-    ...(d.installmentTotal !== null ? { installmentTotal: d.installmentTotal } : {}),
+    ...(d.installmentGroupId
+      ? { installmentGroupId: d.installmentGroupId }
+      : {}),
+    ...(d.installmentNumber !== null
+      ? { installmentNumber: d.installmentNumber }
+      : {}),
+    ...(d.installmentTotal !== null
+      ? { installmentTotal: d.installmentTotal }
+      : {}),
   };
 }
 
@@ -77,6 +83,7 @@ export interface TransactionFilters {
   to?: string;
   type?: TransactionType;
   categoryId?: string;
+  creditCardId?: string;
   method?: PaymentMethod;
   basis?: AggregationBasis;
 }
@@ -90,6 +97,7 @@ export async function listTransactions(
     to: filters.to,
     type: filters.type,
     categoryId: filters.categoryId,
+    creditCardId: filters.creditCardId,
     method: filters.method,
     basis: filters.basis ? basisParam(filters.basis) : undefined,
     limit: 100,
@@ -99,7 +107,9 @@ export async function listTransactions(
 
 export async function getTransaction(id: string): Promise<Transaction | null> {
   try {
-    return toTransaction(await api.get<TransactionDto>(`/v1/transactions/${id}`));
+    return toTransaction(
+      await api.get<TransactionDto>(`/v1/transactions/${id}`),
+    );
   } catch {
     return null;
   }
@@ -145,13 +155,44 @@ export async function createTransaction(
 
 export type EditScope = "ONE" | "FUTURE" | "ALL";
 
-export async function updateTransaction(
-  id: string,
-  patch: Partial<Transaction>,
-): Promise<Transaction> {
-  return toTransaction(await api.patch<TransactionDto>(`/v1/transactions/${id}`, patch));
+/** Campos aceitos pelo PATCH estrito da API. */
+export interface UpdateTransactionInput {
+  amountCents?: number;
+  description?: string;
+  occurredAt?: string;
+  settledAt?: string | null;
+  categoryId?: string | null;
+  accountId?: string;
+  creditCardId?: string | null;
+  paymentMethod?: PaymentMethod;
+  notes?: string | null;
+  isProjected?: boolean;
 }
 
-export async function deleteTransaction(id: string, scope: EditScope): Promise<void> {
+export async function updateTransaction(
+  id: string,
+  patch: UpdateTransactionInput,
+  scope: EditScope = "ONE",
+): Promise<Transaction[]> {
+  const safeScope =
+    scope !== "ONE" &&
+    (patch.occurredAt !== undefined || patch.settledAt !== undefined)
+      ? "ONE"
+      : scope;
+  const body =
+    patch.paymentMethod !== undefined && patch.paymentMethod !== "CREDIT"
+      ? { ...patch, creditCardId: null }
+      : patch;
+  const updated = await api.patch<TransactionDto[]>(
+    `/v1/transactions/${id}?scope=${safeScope.toLowerCase()}`,
+    body,
+  );
+  return updated.map(toTransaction);
+}
+
+export async function deleteTransaction(
+  id: string,
+  scope: EditScope,
+): Promise<void> {
   await api.del(`/v1/transactions/${id}`, { scope: scope.toLowerCase() });
 }

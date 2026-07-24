@@ -2,7 +2,12 @@
  * Hooks de React Query para transações. Criação é OTIMISTA (BRIEF §6.2): a
  * lista do mês atualiza antes da resposta do servidor; em erro, faz rollback.
  */
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  useMutation,
+  useQuery,
+  useQueryClient,
+  type UseQueryResult,
+} from "@tanstack/react-query";
 import { buildTransactions, monthRangeUTC, nowISO } from "@core/domain";
 import type { AggregationBasis, Transaction } from "@core/domain";
 import { newId } from "@core/id";
@@ -15,12 +20,15 @@ import {
   updateTransaction,
   type CreateTransactionInput,
   type EditScope,
+  type UpdateTransactionInput,
 } from "./transactions-repo";
 
 export const txKeys = {
   all: ["transactions"] as const,
   month: (monthKey: string, basis: AggregationBasis) =>
     [...txKeys.all, "month", monthKey, basis] as const,
+  invoice: (creditCardId: string, monthKey: string) =>
+    [...txKeys.all, "invoice", creditCardId, monthKey] as const,
   one: (id: string) => [...txKeys.all, "one", id] as const,
 };
 
@@ -32,6 +40,27 @@ export function useMonthTransactions() {
   return useQuery({
     queryKey: txKeys.month(monthKey, basis),
     queryFn: () => listTransactions({ from, to, basis }),
+  });
+}
+
+export function useInvoiceTransactions(
+  creditCardId: string,
+  monthKey: string,
+  enabled = true,
+): UseQueryResult<Transaction[]> {
+  const { from, to } = monthRangeUTC(monthKey);
+  return useQuery({
+    queryKey: txKeys.invoice(creditCardId, monthKey),
+    queryFn: () =>
+      listTransactions({
+        creditCardId,
+        from,
+        to,
+        type: "EXPENSE",
+        method: "CREDIT",
+        basis: "CASH",
+      }),
+    enabled,
   });
 }
 
@@ -68,7 +97,10 @@ export function useCreateTransaction() {
         },
         { newId, now: nowISO },
       );
-      qc.setQueryData<Transaction[]>(key, (old) => [...preview, ...(old ?? [])]);
+      qc.setQueryData<Transaction[]>(key, (old) => [
+        ...preview,
+        ...(old ?? []),
+      ]);
       return { key, previous };
     },
     onError: (_e, _input, ctx) => {
@@ -78,6 +110,7 @@ export function useCreateTransaction() {
       qc.invalidateQueries({ queryKey: txKeys.all });
       qc.invalidateQueries({ queryKey: ["insights"] });
       qc.invalidateQueries({ queryKey: ["accounts"] });
+      qc.invalidateQueries({ queryKey: ["credit-cards"] });
     },
   });
 }
@@ -88,8 +121,9 @@ export function useDeleteTransaction() {
     mutationFn: ({ id, scope }: { id: string; scope: EditScope }) =>
       deleteTransaction(id, scope),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: txKeys.all });
-      qc.invalidateQueries({ queryKey: ["insights"] });
+      void qc.invalidateQueries({ queryKey: txKeys.all });
+      void qc.invalidateQueries({ queryKey: ["insights"] });
+      void qc.invalidateQueries({ queryKey: ["credit-cards"] });
     },
   });
 }
@@ -97,11 +131,19 @@ export function useDeleteTransaction() {
 export function useUpdateTransaction() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, patch }: { id: string; patch: Partial<Transaction> }) =>
-      updateTransaction(id, patch),
+    mutationFn: ({
+      id,
+      patch,
+      scope,
+    }: {
+      id: string;
+      patch: UpdateTransactionInput;
+      scope?: EditScope;
+    }) => updateTransaction(id, patch, scope ?? "ONE"),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: txKeys.all });
-      qc.invalidateQueries({ queryKey: ["insights"] });
+      void qc.invalidateQueries({ queryKey: txKeys.all });
+      void qc.invalidateQueries({ queryKey: ["insights"] });
+      void qc.invalidateQueries({ queryKey: ["credit-cards"] });
     },
   });
 }
