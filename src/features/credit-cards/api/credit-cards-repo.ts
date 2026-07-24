@@ -1,8 +1,4 @@
-/**
- * Repositório de cartões de crédito — API NestJS. Pagamento no crédito (e todo
- * parcelamento) exige um cartão no backend, então garantimos um cartão default
- * após o login, como fazemos com a conta.
- */
+/** Repositório de cartões de crédito — API NestJS. */
 import { api } from "@core/api";
 
 export interface CreditCard {
@@ -33,18 +29,32 @@ export async function createCreditCard(
   return api.post<CreditCard>("/v1/credit-cards", input);
 }
 
-/** Garante ao menos um cartão (usa a primeira conta). */
-export async function ensureDefaultCreditCard(): Promise<void> {
-  const cards = await api.get<CreditCard[]>("/v1/credit-cards");
-  if (cards.length > 0) return;
-  const accounts = await api.get<{ id: string }[]>("/v1/accounts");
-  const accountId = accounts[0]?.id;
-  if (!accountId) return;
-  await createCreditCard({
-    accountId,
-    name: "Meu cartão",
-    limitCents: 500000,
-    closingDay: 25,
-    dueDay: 10,
-  });
+export interface UpdateCreditCardInput {
+  accountId?: string;
+  name?: string;
+  limitCents?: number;
+  closingDay?: number;
+  dueDay?: number;
+}
+
+export interface Invoice {
+  creditCardId: string;
+  month: string;
+  totalCents: number;
+  status: "OPEN" | "CLOSED";
+}
+
+export async function updateCreditCard(
+  id: string,
+  input: UpdateCreditCardInput,
+): Promise<CreditCard> {
+  return api.patch<CreditCard>(`/v1/credit-cards/${id}`, input);
+}
+
+export async function deleteCreditCard(id: string): Promise<void> {
+  await api.del(`/v1/credit-cards/${id}`);
+}
+
+export async function getInvoice(id: string, month: string): Promise<Invoice> {
+  return api.get<Invoice>(`/v1/credit-cards/${id}/invoices`, { month });
 }

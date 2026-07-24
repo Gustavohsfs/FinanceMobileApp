@@ -13,7 +13,6 @@ import { colors } from "@core/theme";
 import { useAuthStore } from "@features/auth";
 import { ConsolidatedBalance } from "@features/dashboard";
 import { ensureDefaultAccount } from "@features/accounts";
-import { ensureDefaultCreditCard } from "@features/credit-cards";
 import { Icon, Text } from "@shared/ui";
 
 function CustomDrawerContent(props: DrawerContentComponentProps) {
@@ -31,7 +30,10 @@ function CustomDrawerContent(props: DrawerContentComponentProps) {
         </Text>
         <ConsolidatedBalance />
       </View>
-      <DrawerContentScrollView {...props} contentContainerStyle={{ paddingTop: 8 }}>
+      <DrawerContentScrollView
+        {...props}
+        contentContainerStyle={{ paddingTop: 8 }}
+      >
         <DrawerItemList {...props} />
       </DrawerContentScrollView>
     </View>
@@ -67,14 +69,13 @@ function icon(name: string) {
 }
 
 export default function AppLayout() {
-  // Backend cria categorias no registro, mas não conta nem cartão. Garante ambos
-  // (crédito e parcelamento exigem um cartão). Falha aqui não pode derrubar o
-  // app — sem rede, o quick-entry avisa na hora de salvar.
+  // Backend cria categorias no registro, mas não conta. A conta é garantida;
+  // cartões são opcionais e gerenciados pelo usuário. Falha aqui não pode
+  // derrubar o app — sem rede, o quick-entry avisa na hora de salvar.
   useEffect(() => {
     void (async () => {
       try {
         await ensureDefaultAccount();
-        await ensureDefaultCreditCard();
       } catch {
         // offline ou API indisponível — tenta de novo na próxima abertura
       }
@@ -107,7 +108,10 @@ export default function AppLayout() {
         />
         <Drawer.Screen
           name="transactions"
-          options={{ title: "Lançamentos", drawerIcon: icon("arrow-left-right") }}
+          options={{
+            title: "Lançamentos",
+            drawerIcon: icon("arrow-left-right"),
+          }}
         />
         <Drawer.Screen
           name="categories"
@@ -123,7 +127,10 @@ export default function AppLayout() {
         />
         <Drawer.Screen
           name="accounts"
-          options={{ title: "Contas e cartões", drawerIcon: icon("credit-card") }}
+          options={{
+            title: "Contas e cartões",
+            drawerIcon: icon("credit-card"),
+          }}
         />
         <Drawer.Screen
           name="reports"

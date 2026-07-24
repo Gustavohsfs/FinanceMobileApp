@@ -49,7 +49,8 @@ export default function QuickEntryScreen() {
   // padrão inteligente: método = último usado
   useEffect(() => {
     void kv.getString(LAST_METHOD_KEY).then((m) => {
-      if (m && METHODS.includes(m as PaymentMethod)) setMethod(m as PaymentMethod);
+      if (m && METHODS.includes(m as PaymentMethod))
+        setMethod(m as PaymentMethod);
     });
   }, []);
 
@@ -66,7 +67,7 @@ export default function QuickEntryScreen() {
 
   const perInstallment =
     amountCents > 0 && installments > 1
-      ? splitPreview(amountCents, installments)[0] ?? 0
+      ? (splitPreview(amountCents, installments)[0] ?? 0)
       : amountCents;
 
   function close() {
@@ -81,7 +82,7 @@ export default function QuickEntryScreen() {
     // servidor, que conhece fechamento/vencimento da fatura.
     const creditCardId = method === "CREDIT" ? cards?.[0]?.id : undefined;
     if (method === "CREDIT" && !creditCardId) {
-      setError("Nenhum cartão disponível ainda. Tente de novo em instantes.");
+      setError("Crie um cartão em Contas e cartões antes de usar crédito.");
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       return;
     }
